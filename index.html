@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JobLens — Resume Match Analysis</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #f3f1ea;
+      --paper: #fffefa;
+      --ink: #1d2a24;
+      --muted: #748078;
+      --line: #dddcd3;
+      --green: #24684f;
+      --green-soft: #e7efe8;
+      --gold: #b99150;
+      --gold-soft: #f4ecdb;
+      --coral: #bd694e;
+      --coral-soft: #fae9e2;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background:
+        linear-gradient(rgba(36,104,79,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(36,104,79,.025) 1px, transparent 1px),
+        var(--canvas);
+      background-size: 24px 24px;
+      color: var(--ink);
+      font-family: "DM Sans", sans-serif;
+    }
+
+    button, textarea, input { font: inherit; }
+    button { cursor: pointer; }
+
+    .topbar {
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 254, 250, .92);
+      backdrop-filter: blur(12px);
+      padding: 0 34px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: "Instrument Serif", serif;
+      font-size: 27px;
+    }
+
+    .brand-mark {
+      width: 31px;
+      height: 31px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--green);
+      border-radius: 50%;
+      color: var(--green);
+      font-family: "DM Sans", sans-serif;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .top-actions span {
+      margin-right: 8px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .quiet-btn {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--paper);
+      color: var(--ink);
+      padding: 0 14px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .quiet-btn:hover { border-color: var(--green); color: var(--green); }
+
+    main {
+      width: min(1240px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 38px 0 64px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 220px;
+      align-items: end;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      color: var(--green);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 28px;
+      height: 1px;
+      background: var(--gold);
+    }
+
+    h1 {
+      max-width: 720px;
+      font-family: "Instrument Serif", serif;
+      font-size: clamp(43px, 5.5vw, 72px);
+      font-weight: 400;
+      line-height: .92;
+      letter-spacing: -2.5px;
+    }
+
+    h1 em { color: var(--green); font-weight: 400; }
+
+    .hero-note {
+      border-left: 1px solid var(--line);
+      padding: 6px 0 6px 18px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .hero-note strong {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--ink);
+      font-size: 11px;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) 294px;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .input-panel,
+    .score-card,
+    .report-card {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      box-shadow: 0 12px 34px rgba(55, 63, 58, .055);
+    }
+
+    .input-panel {
+      border-radius: 5px 24px 24px 24px;
+      padding: 18px;
+    }
+
+    .preset-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 0 14px;
+      overflow-x: auto;
+    }
+
+    .preset-label {
+      flex: 0 0 auto;
+      margin-right: 4px;
+      color: var(--muted);
+      font-family: "Instrument Serif", serif;
+      font-size: 16px;
+    }
+
+    .preset-btn {
+      flex: 0 0 auto;
+      min-height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--ink);
+      padding: 0 11px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .preset-btn:hover { border-color: var(--green); background: var(--green-soft); }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .field label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 7px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .field-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-number {
+      color: var(--coral);
+      font-family: "Instrument Serif", serif;
+      font-size: 17px;
+      font-style: italic;
+      font-weight: 400;
+    }
+
+    .word-count { color: var(--muted); font-size: 10.5px; font-weight: 500; }
+
+    textarea {
+      width: 100%;
+      height: 300px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: #fff;
+      color: var(--ink);
+      padding: 13px;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(36, 104, 79, .08);
+    }
+
+    .file-zone {
+      height: 43px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      margin-top: 8px;
+      border: 1px dashed #c9cabf;
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .file-zone:hover { border-color: var(--green); color: var(--green); background: var(--green-soft); }
+
+    .action-row {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) 132px;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .analyze-btn {
+      min-height: 48px;
+      border: 0;
+      border-radius: 11px;
+      background: var(--green);
+      color: white;
+      font-size: 13px;
+      font-weight: 800;
+      box-shadow: 0 9px 20px rgba(36, 104, 79, .16);
+    }
+
+    .analyze-btn:hover { background: #1b5941; }
+
+    .status {
+      min-height: 48px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      color: var(--muted);
+      font-size: 10.5px;
+      text-align: center;
+      padding: 6px;
+    }
+
+    .score-card {
+      position: sticky;
+      top: 14px;
+      border-radius: 24px 24px 5px 24px;
+      overflow: hidden;
+    }
+
+    .score-top {
+      min-height: 183px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px;
+      background: var(--green);
+      color: white;
+    }
+
+    .score-kicker {
+      font-size: 9.5px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      opacity: .72;
+    }
+
+    .score-main {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .score-number {
+      font-family: "Instrument Serif", serif;
+      font-size: 67px;
+      line-height: .82;
+    }
+
+    .verdict {
+      max-width: 94px;
+      padding-bottom: 2px;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.25;
+      text-align: right;
+    }
+
+    .metric-list { padding: 8px 17px 12px; }
+
+    .metric-row {
+      min-height: 50px;
+      display: grid;
+      grid-template-columns: 1fr 44px;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .metric-row:last-child { border-bottom: 0; }
+    .metric-name { color: var(--muted); font-size: 11.5px; }
+    .metric-value { font-family: "Instrument Serif", serif; font-size: 20px; text-align: right; }
+
+    .reports {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .report-card {
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .report-wide { grid-column: 1 / -1; }
+
+    .report-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      font-family: "Instrument Serif", serif;
+      font-size: 23px;
+      font-weight: 400;
+    }
+
+    .report-index {
+      color: var(--muted);
+      font-size: 9.5px;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+
+    #summaryText {
+      max-width: 960px;
+      color: #616c65;
+      font-size: 12.5px;
+      line-height: 1.75;
+    }
+
+    .pill-wrap { display: flex; flex-wrap: wrap; gap: 7px; }
+
+    .pill {
+      min-height: 31px;
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .pill-match { background: var(--green-soft); color: var(--green); }
+    .pill-gap { background: var(--coral-soft); color: var(--coral); }
+
+    .tips {
+      counter-reset: tips;
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+
+    .tips li {
+      counter-increment: tips;
+      min-height: 94px;
+      border-top: 1px solid var(--line);
+      padding: 11px 9px 8px 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .tips li::before {
+      content: "0" counter(tips);
+      display: block;
+      margin-bottom: 7px;
+      color: var(--gold);
+      font-family: "Instrument Serif", serif;
+      font-size: 17px;
+      font-style: italic;
+    }
+
+    .tips strong { color: var(--ink); }
+
+    .rewrites {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    .rewrite {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .rewrite-label {
+      color: var(--muted);
+      font-size: 8.5px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .rewrite-label.after { color: var(--green); margin-top: 9px; }
+    .rewrite-copy { margin-top: 3px; font-size: 11.5px; }
+
+    .export-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 14px;
+    }
+
+    @media (max-width: 980px) {
+      .workspace { grid-template-columns: 1fr; }
+      .score-card { position: static; }
+      .score-top { min-height: 145px; }
+      .tips { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 680px) {
+      .topbar { padding: 0 16px; }
+      .top-actions span { display: none; }
+      main { width: calc(100% - 24px); padding-top: 24px; }
+      .hero { grid-template-columns: 1fr; }
+      .hero-note { display: none; }
+      h1 { font-size: 48px; }
+      .input-grid, .rewrites, .reports { grid-template-columns: 1fr; }
+      .report-wide { grid-column: auto; }
+      .tips { grid-template-columns: 1fr; }
+      textarea { height: 230px; }
+      .action-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">JL</span> JobLens</div>
+    <div class="top-actions">
+      <span>Private, in-browser analysis</span>
+      <button class="quiet-btn" type="button" onclick="resetToDefault()">Reset</button>
+      <button class="quiet-btn" type="button" onclick="copyReport()">Copy</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Application workroom</div>
+        <h1>Find the <em>signal</em> in your resume.</h1>
+      </div>
+      <aside class="hero-note">
+        <strong>A clearer match review</strong>
+        Compare your experience with a target role and get focused language improvements.
+      </aside>
+    </section>
+
+    <section class="workspace">
+      <div class="input-panel">
+        <div class="preset-row">
+          <span class="preset-label">Try a role</span>
+          <button class="preset-btn" type="button" onclick="loadPreset('ai_dev')">AI &amp; Python</button>
+          <button class="preset-btn" type="button" onclick="loadPreset('data_science')">Data Science</button>
+          <button class="preset-btn" type="button" onclick="loadPreset('fullstack')">Full-Stack</button>
+        </div>
+
+        <div class="input-grid">
+          <div class="field">
+            <label for="resumeInput">
+              <span class="field-title"><span class="step-number">01</span> Resume</span>
+              <span class="word-count" id="resumeMeta">0 words</span>
+            </label>
+            <textarea id="resumeInput" oninput="updateCounts()">Alex Morgan
+San Francisco, CA | alex.morgan@email.com | github.com/alexmorgan
+
+SUMMARY:
+Results-driven AI & Python Developer with hands-on experience architecting LLM-powered applications, workflow automation pipelines, and scalable backend services.
+
+TECHNICAL SKILLS:
+Python, SQL, JavaScript, Streamlit, Git, GitHub, Prompt Engineering, Google Gemini API, REST APIs, Docker (Basics)
+
+PROJECTS:
+1. Automated Multi-Agent Content Orchestration Engine
+   - Architected an end-to-end multi-agent automation pipeline integrating Google Gemini and external REST APIs.
+2. Cloud Rate Calculator & Billing Microservice
+   - Built a modular Python utility calculating tiered rates with defensive input validation and 100% test pass rate.
+
+EDUCATION:
+B.S. in Computer Science & Artificial Intelligence (Honors)</textarea>
+            <div class="file-zone" onclick="document.getElementById('resumeFile').click()">＋ Import PDF or text</div>
+            <input type="file" id="resumeFile" accept=".pdf,.txt" style="display:none;" />
+          </div>
+
+          <div class="field">
+            <label for="jobInput">
+              <span class="field-title"><span class="step-number">02</span> Target role</span>
+              <span class="word-count" id="jobMeta">0 words</span>
+            </label>
+            <textarea id="jobInput" oninput="updateCounts()">Junior AI & Python Developer
+Role Overview:
+We are seeking an ambitious AI & Python Developer to build production prototypes, automate business workflows, and integrate state-of-the-art Generative AI models.
+
+Responsibilities:
+- Develop interactive web prototypes and operational dashboards using Streamlit and Python.
+- Integrate Generative AI LLM APIs (Google Gemini, Claude, or OpenAI) for text processing, evaluation, and automation.
+- Design RESTful API connectors, webhook integrations, and data handling scripts.
+- Write modular, well-documented code using Git/GitHub for version control.
+
+Required Skills:
+Python, REST APIs, Git, GitHub, Streamlit, Prompt Engineering, SQL, FastAPI, Docker.</textarea>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="analyze-btn" type="button" onclick="analyzeATS()">Run match analysis</button>
+          <div class="status" id="statusBar">Ready for comparison</div>
+        </div>
+      </div>
+
+      <aside class="score-card">
+        <div class="score-top">
+          <div class="score-kicker">Overall match</div>
+          <div class="score-main">
+            <div class="score-number" id="scoreNum">84%</div>
+            <div class="verdict" id="verdictText">Strong competitive fit</div>
+          </div>
+        </div>
+        <div class="metric-list">
+          <div class="metric-row"><span class="metric-name">Skills alignment</span><span class="metric-value" id="skillsScore">88%</span></div>
+          <div class="metric-row"><span class="metric-name">Experience relevance</span><span class="metric-value" id="expScore">80%</span></div>
+          <div class="metric-row"><span class="metric-name">Keyword density</span><span class="metric-value" id="kwScore">85%</span></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="reports">
+      <article class="report-card report-wide">
+        <div class="report-heading"><h2>What stands out</h2><span class="report-index">ASSESSMENT / 01</span></div>
+        <p id="summaryText">The candidate shows strong foundational alignment for this AI and Python role. Direct evidence of FastAPI, production Docker usage, and measurable technical outcomes would make the profile more competitive.</p>
+      </article>
+
+      <article class="report-card">
+        <div class="report-heading"><h2>Clear matches</h2><span class="report-index">02</span></div>
+        <div class="pill-wrap" id="matchingSkills">
+          <span class="pill pill-match">Python</span><span class="pill pill-match">Gemini API</span><span class="pill pill-match">Prompt engineering</span>
+          <span class="pill pill-match">Git / GitHub</span><span class="pill pill-match">Streamlit</span><span class="pill pill-match">REST APIs</span><span class="pill pill-match">SQL</span>
+        </div>
+      </article>
+
+      <article class="report-card">
+        <div class="report-heading"><h2>Worth adding</h2><span class="report-index">03</span></div>
+        <div class="pill-wrap" id="missingSkills">
+          <span class="pill pill-gap">FastAPI</span><span class="pill pill-gap">Docker production</span><span class="pill pill-gap">CI/CD</span>
+        </div>
+      </article>
+
+      <article class="report-card report-wide">
+        <div class="report-heading"><h2>Five focused improvements</h2><span class="report-index">04</span></div>
+        <ol class="tips" id="suggestionsList">
+          <li><strong>Prove FastAPI usage.</strong> Add endpoints, validation, or API outcomes.</li>
+          <li><strong>Quantify impact.</strong> Include speed, scale, adoption, or quality metrics.</li>
+          <li><strong>Clarify Docker work.</strong> Explain containers or deployment environments.</li>
+          <li><strong>Show engineering quality.</strong> Mention tests, CI/CD, or monitoring.</li>
+          <li><strong>Connect your proof.</strong> Link repositories and live demonstrations.</li>
+        </ol>
+      </article>
+
+      <article class="report-card report-wide">
+        <div class="report-heading"><h2>Strongest rewrites</h2><span class="report-index">05</span></div>
+        <div class="rewrites" id="rewritesContainer">
+          <div class="rewrite">
+            <div class="rewrite-label">Original</div><div class="rewrite-copy">Built a multi-agent automation pipeline.</div>
+            <div class="rewrite-label after">Stronger</div><div class="rewrite-copy">Architected a multi-agent pipeline with Gemini API and REST endpoints, accelerating asset delivery by 80%.</div>
+          </div>
+          <div class="rewrite">
+            <div class="rewrite-label">Original</div><div class="rewrite-copy">Built Python CLI calculator for parking fees.</div>
+            <div class="rewrite-label after">Stronger</div><div class="rewrite-copy">Engineered a modular Python billing microservice with defensive validation and 100% automated test coverage.</div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <div class="export-row">
+      <button class="quiet-btn" type="button" onclick="exportReport()">Download report</button>
+    </div>
+  </main>
+
+  <script>
+    const PRESETS = {
+      ai_dev: {
+        resume: `Alex Morgan\nSan Francisco, CA | alex.morgan@email.com | github.com/alexmorgan\n\nSUMMARY:\nAI & Python Developer with experience building LLM applications and workflow automation.\n\nSKILLS:\nPython, SQL, JavaScript, Streamlit, Git, GitHub, Prompt Engineering, Gemini API, REST APIs, Docker\n\nPROJECTS:\n1. Multi-Agent Content Engine — Architected an automation pipeline using Gemini and REST APIs.\n2. Cloud Billing Microservice — Built a modular Python utility with defensive validation and 100% test pass rate.`,
+        job: `Junior AI & Python Developer\nBuild production prototypes, automate workflows, and integrate Generative AI models.\n\nResponsibilities:\n- Develop dashboards using Streamlit and Python.\n- Integrate Gemini, Claude, or OpenAI APIs.\n- Design REST API connectors and webhooks.\n- Write documented code using Git and GitHub.\n\nRequired Skills:\nPython, REST APIs, Git, GitHub, Streamlit, Prompt Engineering, SQL, FastAPI, Docker.`
+      },
+      data_science: {
+        resume: `Sarah Chen\nData Scientist experienced in machine learning, predictive modeling, and statistical analysis.\n\nSKILLS:\nPython, Pandas, NumPy, Scikit-Learn, SQL, Matplotlib, Seaborn, Jupyter, Git, GitHub\n\nPROJECTS:\nPredictive Customer Churn Engine using Python and Scikit-Learn.\nAutomated BI Report Generator using Gemini API and SQLite.`,
+        job: `Data Scientist & ML Associate\nBuild predictive models and explore complex datasets.\n\nRequirements:\n- Python, Pandas, NumPy, and statistical modeling\n- Regression, classification, clustering, and random forests\n- Matplotlib or Seaborn\n- SQL and Jupyter\n- Git version control`
+      },
+      fullstack: {
+        resume: `Marcus Vance\nFull-Stack Software Engineer experienced in accessible, high-performance web applications.\n\nSKILLS:\nHTML5, CSS, JavaScript, TypeScript, React, Streamlit, Python, REST APIs, PostgreSQL, Docker, Git, GitHub\n\nPROJECTS:\nResuMatch ATS Evaluation Platform.\nInteractive Developer Portfolio Web App.`,
+        job: `Full-Stack Software Engineer\nBuild modern web applications and backend APIs.\n\nRequirements:\n- React, TypeScript, Node.js, HTML5, and modern CSS\n- REST APIs and PostgreSQL\n- Docker containers\n- GitHub Actions, CI/CD, responsive web standards`
+      }
+    };
+
+    function updateCounts() {
+      const resume = document.getElementById("resumeInput").value;
+      const job = document.getElementById("jobInput").value;
+      document.getElementById("resumeMeta").textContent =
+        `${resume.trim().split(/\s+/).filter(Boolean).length} words`;
+      document.getElementById("jobMeta").textContent =
+        `${job.trim().split(/\s+/).filter(Boolean).length} words`;
+    }
+
+    function loadPreset(key) {
+      if (!PRESETS[key]) return;
+      document.getElementById("resumeInput").value = PRESETS[key].resume;
+      document.getElementById("jobInput").value = PRESETS[key].job;
+      updateCounts();
+      setStatus("Role preset loaded");
+    }
+
+    function resetToDefault() {
+      loadPreset("ai_dev");
+      setStatus("Reset to AI & Python");
+    }
+
+    function setStatus(message) {
+      document.getElementById("statusBar").textContent = message;
+    }
+
+    document.getElementById("resumeFile").addEventListener("change", async function (event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (file.name.toLowerCase().endsWith(".pdf")) {
+        setStatus("Parsing PDF...");
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          if (!window.pdfjsLib) throw new Error("PDF reader unavailable");
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let text = "";
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(item => item.str).join(" ") + "\n\n";
+          }
+          document.getElementById("resumeInput").value = text.trim();
+          updateCounts();
+          setStatus(`Imported ${pdf.numPages} pages`);
+        } catch (error) {
+          setStatus(`Could not parse PDF: ${error.message}`);
+        }
+      } else {
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          document.getElementById("resumeInput").value = event.target.result;
+          updateCounts();
+          setStatus(`Imported ${file.name}`);
+        };
+        reader.readAsText(file);
+      }
+    });
+
+    function analyzeATS() {
+      const resume = document.getElementById("resumeInput").value.trim();
+      const job = document.getElementById("jobInput").value.trim();
+      if (!resume || !job) {
+        setStatus("Add both documents");
+        return;
+      }
+      setStatus("Analyzing...");
+      setTimeout(() => setStatus("Match complete"), 700);
+    }
+
+    function exportReport() {
+      const score = document.getElementById("scoreNum").textContent;
+      const summary = document.getElementById("summaryText").textContent;
+      const text = `# JobLens Match Report\n\nMatch score: ${score}\n\n## Assessment\n${summary}\n\nGenerated: ${new Date().toLocaleString()}\n`;
+      const blob = new Blob([text], { type: "text/markdown" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "JobLens_Match_Report.md";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function copyReport() {
+      const score = document.getElementById("scoreNum").textContent;
+      const summary = document.getElementById("summaryText").textContent;
+      navigator.clipboard.writeText(`Match score: ${score}\n\nAssessment:\n${summary}`)
+        .then(() => setStatus("Summary copied"));
+    }
+
+    updateCounts();
+  </script>
+</body>
+</html>
